@@ -1,0 +1,298 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Week 6 Class Notes
+
+Nov 6, 2023
+
+### Starting today by reviewing browser
+
+What I remember about this function is that it is a manual stop in the middle of a function that lets you explore what's happening in your R at that point. So, you can use it for debugging, because it means that if you're running a function and aren't sure what it's getting up to it'll pause and let you fuss around inside.
+
+I am #9 :)
+
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+
+traits_r2 <- function(trait1, trait2) {
+  summary(lm(trait1 ~ trait2))$r.squared
+}
+
+penguins %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm))
+```
+
+**Q1:** How would you describe the error? I\'m not asking you describe the *cause* of the error yet. Describe how the output is different than what you would expect.
+
+*I was expecting the R squared value of a linear model of flipper length against bill length, and I got jack all*
+
+**Q2:** Where would you add `browser()` to explore the cause of the error?
+
+*You would add browser inside of the function, before the summary line*
+
+**Q3:** Does the body of `traits_r2` use list or atomic vector indexing? Does it use indexing by position, logic, or name?
+
+*it is using list indexing by name*
+
+**Q4:** What\'s the cause of the error? How would you fix it?
+
+*the cause of the error is that you should have had a period: `r.squared.`We figured this out because emily knew that if you save the output of a linear model summary to an object (test) then you can do test\$ to find out what its contents are called. we also could do names(test) to get the same result, and then you just realize that you didn't know the names of the thing and needed a period in r.squared (originally it didn't have one).*
+
+## **Adding `group_by()`**
+
+The following pipeline is similar to the one above, with an added layer of complexity. Use it to answer the following questions.
+
+```{r}
+# Pipeline 1
+penguins %>% 
+  group_by(species) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm))
+
+# Pipeline 2
+penguins %>% 
+  group_by(species, island) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm),
+            .groups = "drop")
+```
+
+**Q5:** How many times does Pipeline 1 call `traits_r2()`? How about Pipeline 2?
+
+*Pipeline 1 calls it 3 times, pipeline 2 calls it 5*
+
+**Q6:** Create Pipeline 3 that additionally groups by sex. How many times does Pipeline 3 call `traits_r2()`?
+
+```{r}
+# Pipeline 3
+penguins %>% 
+  group_by(species, island, sex) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm),
+            .groups = "drop")
+```
+
+*13*
+
+## **Error in `group_by()`-`summarize()`**
+
+The following code creates an error in Pipeline 3. Change your Pipeline 3 to use `penguins2` instead of `penguins`, then answer the following questions.
+
+```{r}
+set.seed(12345)
+penguins2 <- penguins %>% 
+  drop_na(sex) %>% 
+  sample_n(25)
+penguins2[7, 3:6] <- NA
+
+penguins2 %>% 
+  group_by(species, island, sex) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm),
+            .groups = "drop")
+```
+
+**Q7:** How would you describe the error?
+
+*I made a little subset of my data that didn't have NAs and tried to sample 25 of those and then weirdly wrote several new NAs into it. Anyway, the error is that I was expecting a table of the R\^2 values for the linear model of flipper and bill length for the possible combinations of species, island, and sex, and instead I got an error, which says there's an issue in group 6.*
+
+**Q8:** Use `browser()` to diagnose the error. Hint: `c` will tell the debugger to continue until the next time it\'s called.
+
+```{r}
+traits_r2 <- function(trait1, trait2) {
+  summary(lm(trait1 ~ trait2))$r.squared
+}
+
+penguins2 %>% 
+  group_by(species, island, sex) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm),
+            .groups = "drop")
+```
+
+*It seems like the error is in group 6 because you can't run an linear model on NAs without getting an error*
+
+**Q9:** How would you fix the error?
+
+*remove the NAs before you run the function*
+
+```{r}
+set.seed(12345)
+penguins2 <- penguins %>% 
+  drop_na(sex) %>% 
+  sample_n(25)
+penguins2[7, 3:6] <- NA
+
+
+penguins2 %>% 
+  drop_na() %>% 
+  group_by(species, island, sex) %>% 
+  summarize(flipper_bill_r2 = traits_r2(flipper_length_mm, bill_length_mm),
+            .groups = "drop")
+```
+
+# **Visualizing data with `ggplot()`**
+
+This is a basic introduction to data visualization with `ggplot()`, which should come in handy when you\'re creating figures for your final projects.
+
+## **Components of `ggplot()`**
+
+`ggplot()` has four major components:
+
+-   Data
+
+-   Scales
+
+-   Geometries
+
+-   Aesthetics
+
+### **Data**
+
+A **data frame** containing the data you want to visualize. Emphasis on **data frame**. `ggplot()` *is not designed to work with individual vectors*, which you might be used to if you\'ve used base R, Matlab, or other plotting tools.
+
+### **Scales**
+
+Scales determine **where/how** variables in your data will show up in the plot. These include the x- and y-axes, as well as color, size, and more.
+
+### **Geometries**
+
+Geometries determine the **geometric properties** of your variables. E.g. scatter plots use a point geometry and line plots use a line geometry. Other familiar geometries include histograms and box plots.
+
+### **Aesthetics**
+
+The aesthetics unify data, scales, and geometries. They tell `ggplot()` how to translate data to scales for each geometry.
+
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+
+ggplot(data = penguins, aes(x = body_mass_g, y = flipper_length_mm)) +
+  geom_point()
+
+head(penguins)
+```
+
+**Q10:** Change the aesthetics of the plot to show `bill_depth_mm` on the y-axis.
+
+```{r}
+ggplot(data = penguins, aes(x = body_mass_g, y = bill_depth_mm)) +
+  geom_point() 
+
+```
+
+**Q11:** Add an aesthetic for color, so points will be color-coded by species.
+
+```{r}
+ggplot(data = penguins, aes(x = body_mass_g, y = bill_depth_mm, color = species)) +
+  geom_point() 
+
+```
+
+## **Customizing scales**
+
+In addition to adding geometries with `geom_*()`, we can add scales with `scale_*_*()` to customize how scales appear in the figure. The first `*` is the name of the aesthetic, and the second `*` is the type of scale.
+
+```{r}
+ggplot(data = penguins) +
+  # You can also define aesthetics directly inside the geometries
+  geom_point(aes(x = body_mass_g, 
+                 y = flipper_length_mm,
+                 color = species)) +
+  # x aesthetic, continuous scale
+  scale_x_continuous(
+    # change the axis name
+    name = "Body mass (g)",
+    # change the limits
+    limits = c(2000, 8000)
+  ) +
+  # color aesthetic, manual scale
+  scale_color_manual(
+    # set the values for the colors
+    values = c(Adelie = "cornflowerblue",
+               Chinstrap = "firebrick",
+               Gentoo = "darkorchid")
+  )
+```
+
+**Q12:** What function would you use to customize the y-axis? Use that function to expand the y-axis limits to include 150 and 250.
+
+```{r}
+ggplot(data = penguins) +
+  # You can also define aesthetics directly inside the geometries
+  geom_point(aes(x = body_mass_g, 
+                 y = flipper_length_mm,
+                 color = species)) +
+  # x aesthetic, continuous scale
+  scale_x_continuous(
+    # change the axis name
+    name = "Body mass (g)",
+    # change the limits
+    limits = c(2000, 8000)
+  ) +
+    # y aesthetic, continuous scale
+  scale_y_continuous(
+    # change the axis name
+    name = "Flipper length (mm)",
+    # change the limits
+    limits = c(150, 250)
+  ) +
+  # color aesthetic, manual scale
+  scale_color_manual(
+    # set the values for the colors
+    values = c(Adelie = "cornflowerblue",
+               Chinstrap = "firebrick",
+               Gentoo = "darkorchid")
+  )
+```
+
+**Q13:** Look up the help for `scale_color_brewer()`. Change the color scale to use the \"Dark2\" color palette.
+
+```{r}
+ggplot(data = penguins) +
+  # You can also define aesthetics directly inside the geometries
+  geom_point(aes(x = body_mass_g, 
+                 y = flipper_length_mm,
+                 color = species)) +
+  # x aesthetic, continuous scale
+  scale_x_continuous(
+    # change the axis name
+    name = "Body mass (g)",
+    # change the limits
+    limits = c(2000, 8000)
+  ) +
+    # y aesthetic, continuous scale
+  scale_y_continuous(
+    # change the axis name
+    name = "Flipper length (mm)",
+    # change the limits
+    limits = c(150, 250)
+  ) +
+  # color aesthetic, manual scale
+  scale_color_brewer(
+    # set the values for the colors
+    palette = "Dark2"
+  )
+```
+
+## **Other useful geometries**
+
+**Q14:** Use `geom_histogram()` to visualize the distribution of body masses.
+
+```{r}
+ggplot(data = penguins) +
+  geom_histogram(aes(x = body_mass_g)) +
+  scale_x_continuous(
+    name = "Body mass (g)"
+  )+
+  scale_y_continuous(
+    name = "Count"
+  )
+  
+```
+
+**Q15:** Use `geom_boxplot()` to create boxplots of the flipper lengths by species. It should look like the figure below. Hint: what aesthetics will you use?
+
+```{r}
+ggplot(data = penguins) +
+  geom_boxplot(aes(x = species, y = bill_depth_mm))
+```
